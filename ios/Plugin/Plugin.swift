@@ -12,6 +12,7 @@ public class StripePlugin: CAPPlugin {
     internal var customerCtx: STPCustomerContext?
     internal var paymentCtx: STPPaymentContext?
     internal var pCfg: STPPaymentConfiguration?
+    internal var pCall: CAPPluginCall?
 
     internal var ERR_NO_ACTIVE_CUSTOMER_CTX = "No active customer session was found. You must create one by calling initCustomerSession"
 
@@ -23,7 +24,7 @@ public class StripePlugin: CAPPlugin {
             return
         }
 
-        STPAPIClient.shared().stripeAccount = value
+        STPAPIClient.shared.stripeAccount = value
 
         call.success()
     }
@@ -495,11 +496,13 @@ public class StripePlugin: CAPPlugin {
             return
         }
 
-        let pCtx = STPPaymentContext(customerContext:  ctx,
+
+        let pCtx = STPPaymentContext(customerContext: ctx,
                                      configuration: pCfg,
                                      theme: STPTheme.defaultTheme)
 
         DispatchQueue.main.async {
+            self.pCall = call
             pCtx.delegate = self
             pCtx.hostViewController = self.bridge.viewController
             pCtx.presentPaymentOptionsViewController()

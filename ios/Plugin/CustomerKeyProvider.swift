@@ -35,6 +35,16 @@ extension StripePlugin : STPPaymentContextDelegate {
                                didCreatePaymentResult paymentResult: STPPaymentResult,
                                completion: @escaping STPPaymentStatusBlock) {
         self.bridge.triggerJSEvent(eventName: "paymentCreate", target: "", data: "")
+        if let call = pCall {
+            var val: [String:Any] = [:]
+            if paymentResult.paymentMethod?.card?.wallet?.type == .applePay {
+                val["useApplePay"] = true
+            }
+            if let pm = paymentResult.paymentMethod {
+                val["paymentMethod"] = pmToJSON(m: pm)
+            }
+            call.success(val)
+        }
         completion(STPPaymentStatus.success, nil)
     }
 
@@ -44,6 +54,9 @@ extension StripePlugin : STPPaymentContextDelegate {
         switch status {
         case .userCancellation:
             NSLog("User cancelled PaymentContext")
+            if let call = pCall {
+                call.error("User cancelled PaymentContext")
+            }
 
         case .error:
             NSLog("Error occurred in PaymentContext")
@@ -52,8 +65,14 @@ extension StripePlugin : STPPaymentContextDelegate {
                 NSLog(error!.localizedDescription)
             }
 
+            if let call = pCall {
+                call.error(error?.localizedDescription ?? "unknown error in PaymentContext")
+            }
+
         case .success:
             NSLog("PaymentContext returned success status")
         }
+
+        pCall = nil
     }
 }
