@@ -4,6 +4,8 @@ declare module '@capacitor/core' {
   }
 }
 
+export type CallbackID = string;
+
 export type StripeAccountIdOpt = {
   /**
    * Optional
@@ -182,70 +184,28 @@ export interface ConfirmSetupIntentResponse {
   usage: string;
 }
 
+export interface PaymentConfiguration {
+  applePayEnabled?: boolean;
+  fpxEnabled?: boolean;
+  requiredBillingAddressFields?: "none" | "postalCode" | "zip" | "full" | "name";
+  companyName?: string
+  appleMerchantIdentifier?: string
+  canDeletePaymentOptions?: boolean;
+  cardScanningEnabled?: boolean;
+}
+
 export interface StripePlugin {
-  /* Core */
-  setPublishableKey(opts: SetPublishableKeyOptions): Promise<void>;
+  setPublishableKey(opts:SetPublishableKeyOptions): Promise<void>;
 
-  createCardToken(card: CardTokenRequest): Promise<CardTokenResponse>;
+  setCustomerKeyCallback(cb:(data:{apiVersion:string, callbackId:CallbackID}) => void): Promise<CallbackID>;
+  customerKeyCompleted(opts:{callbackId: CallbackID, response: any}): Promise<void>;
 
-  createBankAccountToken(bankAccount: BankAccountTokenRequest): Promise<BankAccountTokenResponse>;
-
-  /* Payment Intents */
-  confirmPaymentIntent(opts: ConfirmPaymentIntentOptions): Promise<ConfirmPaymentIntentResponse>;
-
-  confirmSetupIntent(opts: ConfirmSetupIntentOptions): Promise<ConfirmSetupIntentResponse>;
-
-  /* Apple Pay */
-  payWithApplePay(options: { applePayOptions: ApplePayOptions }): Promise<ApplePayResponse>;
-
-  cancelApplePay(): Promise<void>;
-
-  finalizeApplePayTransaction(opts: FinalizeApplePayTransactionOptions): Promise<void>;
-
-  /* Google Pay */
-  payWithGooglePay(opts: { googlePayOptions: GooglePayOptions }): Promise<GooglePayResponse>;
-
-  /* Other tokens */
-  createSourceToken(opts: CreateSourceTokenOptions): Promise<TokenResponse>;
-
-  createPiiToken(opts: CreatePiiTokenOptions): Promise<TokenResponse>;
-
-  createAccountToken(account: AccountParams): Promise<TokenResponse>;
-
-  /* Payment methods */
-
-  initCustomerSession(opts: InitCustomerSessionParams): Promise<void>;
-
-  customerPaymentMethods(): Promise<CustomerPaymentMethodsResponse>;
-
-  setCustomerDefaultSource(opts: {
-    sourceId: string;
-    type?: string;
-  }): Promise<CustomerPaymentMethodsResponse>;
-
-  addCustomerSource(opts: {
-    sourceId: string;
-    type?: string;
-  }): Promise<CustomerPaymentMethodsResponse>;
-
-  deleteCustomerSource(opts: { sourceId: string }): Promise<CustomerPaymentMethodsResponse>;
-
-  /* Helpers */
-  customizePaymentAuthUI(opts: any): Promise<void>;
-
-  presentPaymentOptions(): Promise<PresentPaymentOptionsResponse>
-
-  isApplePayAvailable(): Promise<AvailabilityResponse>;
-
-  isGooglePayAvailable(): Promise<AvailabilityResponse>;
-
-  validateCardNumber(opts: ValidateCardNumberOptions): Promise<ValidityResponse>;
-
-  validateExpiryDate(opts: ValidateExpiryDateOptions): Promise<ValidityResponse>;
-
-  validateCVC(opts: ValidateCVCOptions): Promise<ValidityResponse>;
-
-  identifyCardBrand(opts: IdentifyCardBrandOptions): Promise<CardBrandResponse>;
+  updatePaymentContext(opts:{amount?:number,currency?:string}): Promise<void>;
+  setPaymentConfiguration(opts:PaymentConfiguration): Promise<void>;
+  setPaymentContextFailedToLoadCallback(cb:(data:{error:string}) => void): Promise<CallbackID>;
+  setPaymentContextCreatedPaymentResultCallback(cb:(data:{paymentMethod:PaymentMethod}) => void): Promise<CallbackID>;
+  paymentContextCreatedPaymentResultCompleted(opts:{callbackId:CallbackID, error?: string}): Promise<void>;
+  presentPaymentOptions(): Promise<void>;
 }
 
 export interface PaymentMethod {

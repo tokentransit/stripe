@@ -6,6 +6,7 @@ import {
   AvailabilityResponse,
   BankAccountTokenRequest,
   BankAccountTokenResponse,
+  CallbackID,
   CardBrand,
   CardBrandResponse,
   CardTokenRequest,
@@ -21,6 +22,8 @@ import {
   GooglePayOptions,
   GooglePayResponse,
   IdentifyCardBrandOptions,
+  PaymentConfiguration,
+  PaymentMethod,
   PresentPaymentOptionsResponse,
   SetPublishableKeyOptions,
   StripePlugin,
@@ -157,123 +160,35 @@ export class StripePluginWeb extends WebPlugin implements StripePlugin {
     });
   }
 
-  async createCardToken(card: CardTokenRequest): Promise<CardTokenResponse> {
-    const body = formBody(card, 'card', ['phone', 'email']);
-    return _stripePost('/v1/tokens', body, this.publishableKey);
+  async setCustomerKeyCallback(cb: (data:{apiVersion:string, callbackId:CallbackID}) => void): Promise<CallbackID> {
+    return ""
   }
 
-  async createBankAccountToken(bankAccount: BankAccountTokenRequest): Promise<BankAccountTokenResponse> {
-    const body = formBody(bankAccount, 'bank_account');
-    return _stripePost('/v1/tokens', body, this.publishableKey);
-  }
-
-  async confirmPaymentIntent(opts: ConfirmPaymentIntentOptions): Promise<ConfirmPaymentIntentResponse> {
-    if (opts.applePayOptions) {
-      throw 'Apple Pay is not supported on web';
-    }
-
-    if (opts.googlePayOptions) {
-      throw 'Google Pay is not supported on web';
-    }
-
-    if (!opts.clientSecret) {
-      return Promise.reject('you must provide a client secret');
-    }
-
-    let confirmOpts: ConfirmCardPaymentData;
-
-    if (opts.paymentMethodId) {
-      confirmOpts = {
-        payment_method: opts.paymentMethodId,
-      };
-    } else if (opts.card) {
-      const token = await this.createCardToken(opts.card);
-      confirmOpts = {
-        save_payment_method: opts.saveMethod,
-        setup_future_usage: opts.setupFutureUsage,
-        payment_method: {
-
-          billing_details: {
-            email: opts.card.email,
-            name: opts.card.name,
-            phone: opts.card.phone,
-            address: {
-              line1: opts.card.address_line1,
-              line2: opts.card.address_line2,
-              city: opts.card.address_city,
-              state: opts.card.address_state,
-              country: opts.card.address_country,
-              postal_code: opts.card.address_zip
-            }
-          },
-          card: {
-            token: token.id,
-          },
-        },
-      };
-    }
-    return this.stripe.confirmCardPayment(opts.clientSecret, confirmOpts).then(response=>(response.paymentIntent || {} as any));
-  }
-
-  async confirmSetupIntent(opts: ConfirmSetupIntentOptions): Promise<ConfirmSetupIntentResponse> {
-    if (!opts.clientSecret) {
-      return Promise.reject('you must provide a client secret');
-    }
-
-    return Promise.reject('Not supported on web');
-  }
-
-  async payWithApplePay(options: { applePayOptions: ApplePayOptions }): Promise<ApplePayResponse> {
-    throw 'Apple Pay is not supported on web';
-  }
-
-  async cancelApplePay(): Promise<void> {
-    throw 'Apple Pay is not supported on web';
-  }
-
-  async finalizeApplePayTransaction(opts: FinalizeApplePayTransactionOptions): Promise<void> {
-    throw 'Apple Pay is not supported on web';
-  }
-
-  async payWithGooglePay(opts: { googlePayOptions: GooglePayOptions }): Promise<GooglePayResponse> {
-    throw 'Google Pay is not supported on web';
-  }
-
-  async createSourceToken(opts: CreateSourceTokenOptions): Promise<TokenResponse> {
-    throw 'Not implemented';
-  }
-
-  async createPiiToken(opts: CreatePiiTokenOptions): Promise<TokenResponse> {
-    const body = formBody({ id_number: opts.pii }, 'pii');
-    return _stripePost('/v1/tokens', body, this.publishableKey);
-  }
-
-  async createAccountToken(account: AccountParams): Promise<TokenResponse> {
-    if (!account.legalEntity) {
-      return Promise.reject('you must provide a legal entity');
-    }
-
-    let body: any = {};
-
-    if (account.legalEntity.type === 'individual') {
-      body.business_type = 'individual';
-      body.individual = account.legalEntity;
-      body.tos_shown_and_accepted = account.tosShownAndAccepted;
-    } else {
-      body.business_type = 'company';
-      body.company = account.legalEntity;
-    }
-
-    delete account.legalEntity.type;
-
-    return _stripePost('/v1/tokens', formBody({ account: body }), this.publishableKey);
-  }
-
-  async customizePaymentAuthUI(opts: any): Promise<void> {
+  async customerKeyCompleted(opts:{callbackId:CallbackID, response:any}): Promise<void> {
     return;
   }
 
-  async presentPaymentOptions(): Promise<PresentPaymentOptionsResponse> {
+  async updatePaymentContext(opts:{amount?:number,currency?:string}): Promise<void> {
+    return;
+  }
+
+  async setPaymentConfiguration(opts:PaymentConfiguration): Promise<void> {
+    return;
+  }
+
+  async setPaymentContextFailedToLoadCallback(cb: (data:{error:string}) => void): Promise<CallbackID> {
+    return "";
+  }
+
+  async setPaymentContextCreatedPaymentResultCallback(cb: (data:{paymentMethod:PaymentMethod}) => void): Promise<CallbackID> {
+    return "";
+  }
+
+  async paymentContextCreatedPaymentResultCompleted(opts:{callbackId:CallbackID, error?:string}): Promise<void> {
+    return;
+  }
+
+  async presentPaymentOptions(): Promise<void> {
     return;
   }
 
