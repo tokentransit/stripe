@@ -25,8 +25,10 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     }
 
     @objc func setPublishableKey(_ call: CAPPluginCall) {
-        if let key = call.getString("key") {
-            StripeAPI.defaultPublishableKey = key
+        DispatchQueue.main.async {
+            if let key = call.getString("key") {
+                StripeAPI.defaultPublishableKey = key
+            }
         }
     }
 
@@ -119,58 +121,62 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     //   - canDeletePaymentOptions: bool
     //   - cardScanningEnabled: bool
     @objc func setPaymentConfiguration(_ call: CAPPluginCall) {
-        let cfg = STPPaymentConfiguration.shared
+        DispatchQueue.main.async {
+            let cfg = STPPaymentConfiguration.shared
 
-        if let applePayEnabled = call.getBool("applePayEnabled") {
-            cfg.applePayEnabled = applePayEnabled
-        }
-        if let fpxEnabled = call.getBool("fpxEnabled") {
-            cfg.fpxEnabled = fpxEnabled
-        }
-        if let requiredBillingAddressFields = call.getString("requiredBillingAddressFields") {
-            switch requiredBillingAddressFields {
-            case "none":
-                cfg.requiredBillingAddressFields = .none
-            case "postalCode", "zip":
-                cfg.requiredBillingAddressFields = .postalCode
-            case "full":
-                cfg.requiredBillingAddressFields = .full
-            case "name":
-                cfg.requiredBillingAddressFields = .name
-            default:
-                break
+            if let applePayEnabled = call.getBool("applePayEnabled") {
+                cfg.applePayEnabled = applePayEnabled
             }
+            if let fpxEnabled = call.getBool("fpxEnabled") {
+                cfg.fpxEnabled = fpxEnabled
+            }
+            if let requiredBillingAddressFields = call.getString("requiredBillingAddressFields") {
+                switch requiredBillingAddressFields {
+                case "none":
+                    cfg.requiredBillingAddressFields = .none
+                case "postalCode", "zip":
+                    cfg.requiredBillingAddressFields = .postalCode
+                case "full":
+                    cfg.requiredBillingAddressFields = .full
+                case "name":
+                    cfg.requiredBillingAddressFields = .name
+                default:
+                    break
+                }
+            }
+            if let companyName = call.getString("companyName") {
+                cfg.companyName = companyName
+            }
+            if let appleMerchantIdentifier = call.getString("appleMerchantIdentifier") {
+                cfg.appleMerchantIdentifier = appleMerchantIdentifier
+            }
+            if let canDeletePaymentOptions = call.getBool("canDeletePaymentOptions") {
+                cfg.canDeletePaymentOptions = canDeletePaymentOptions
+            }
+            if let cardScanningEnabled = call.getBool("cardScanningEnabled") {
+                cfg.cardScanningEnabled = cardScanningEnabled
+            }
+            call.success()
         }
-        if let companyName = call.getString("companyName") {
-            cfg.companyName = companyName
-        }
-        if let appleMerchantIdentifier = call.getString("appleMerchantIdentifier") {
-            cfg.appleMerchantIdentifier = appleMerchantIdentifier
-        }
-        if let canDeletePaymentOptions = call.getBool("canDeletePaymentOptions") {
-            cfg.canDeletePaymentOptions = canDeletePaymentOptions
-        }
-        if let cardScanningEnabled = call.getBool("cardScanningEnabled") {
-            cfg.cardScanningEnabled = cardScanningEnabled
-        }
-        call.success()
     }
 
     // updatePaymentContext creates or updates the payment context, which must be created before requestPayment is called. Takes either no parameters, or amount and currency. If amount and currency are set, the payment context's amount and currency will be updated.
     @objc func updatePaymentContext(_ call: CAPPluginCall) {
-        let ctx = paymentCtx ?? {
-            let newCtx = STPPaymentContext(customerContext: getCustomerContext())
-            newCtx.hostViewController = bridge?.viewController
-            newCtx.delegate = self
-            return newCtx
-        }()
-        paymentCtx = ctx
-        if let amount = call.getInt("amount"), let currency = call.getString("currency") {
-            ctx.paymentAmount = amount
-            ctx.paymentCurrency = currency
-        } else {
-            ctx.paymentAmount = 0
-            ctx.paymentCurrency = ""
+        DispatchQueue.main.async {
+            let ctx = self.paymentCtx ?? {
+                let newCtx = STPPaymentContext(customerContext: self.getCustomerContext())
+                newCtx.hostViewController = self.bridge?.viewController
+                newCtx.delegate = self
+                return newCtx
+            }()
+            self.paymentCtx = ctx
+            if let amount = call.getInt("amount"), let currency = call.getString("currency") {
+                ctx.paymentAmount = amount
+                ctx.paymentCurrency = currency
+            } else {
+                ctx.paymentAmount = 0
+                ctx.paymentCurrency = ""
+            }
         }
     }
 
@@ -201,16 +207,20 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     }
 
     @objc func requestPayment(_ call: CAPPluginCall) {
-        if let requestPaymentCallback = requestPaymentCallback {
-            bridge.releaseCall(requestPaymentCallback)
-        }
+        DispatchQueue.main.async {
+            if let requestPaymentCallback = self.requestPaymentCallback {
+                self.bridge.releaseCall(requestPaymentCallback)
+            }
 
-        requestPaymentCallback = call
-        paymentCtx?.requestPayment()
+            self.requestPaymentCallback = call
+            self.paymentCtx?.requestPayment()
+        }
     }
 
     @objc func showPaymentOptions(_ call: CAPPluginCall) {
-        paymentCtx?.pushPaymentOptionsViewController()
+        DispatchQueue.main.async {
+            self.paymentCtx?.presentPaymentOptionsViewController()
+        }
     }
 
     // currentPaymentOption returns an object:
@@ -218,24 +228,26 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     //   - label: string ("Apple Pay" or "Visa 4242")
     //   - imageDataUrl: string, image encoded as base64 image data usable by a browser as an img src
     @objc func currentPaymentOption(_ call: CAPPluginCall) {
-        guard let paymentCtx = paymentCtx else {
-            call.error("no payment context")
-            return
-        }
+        DispatchQueue.main.async {
+            guard let paymentCtx = self.paymentCtx else {
+                call.error("no payment context")
+                return
+            }
 
-        var result: [String:Any] = [:]
-        if paymentCtx.loading {
-            result["loading"] = true
-        } else {
-            if let selectedPaymentOption = paymentCtx.selectedPaymentOption {
-                result["label"] = selectedPaymentOption.label
-                if let png = selectedPaymentOption.image.pngData() {
-                    result["imageDataUrl"] = "data:image/png;base64," + png.base64EncodedString()
+            var result: [String:Any] = [:]
+            if paymentCtx.loading {
+                result["loading"] = true
+            } else {
+                if let selectedPaymentOption = paymentCtx.selectedPaymentOption {
+                    result["label"] = selectedPaymentOption.label
+                    if let png = selectedPaymentOption.image.pngData() {
+                        result["imageDataUrl"] = "data:image/png;base64," + png.base64EncodedString()
+                    }
                 }
             }
-        }
 
-        call.success(result)
+            call.success(result)
+        }
     }
 
     // paymentContextCreatedPaymentResultCompleted updates the Stripe library with the server response to the payment result callback. It requires the following parameters:
