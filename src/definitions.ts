@@ -142,8 +142,6 @@ export type InitCustomerSessionParams = {
   apiVersion?: string;
 } & StripeAccountIdOpt;
 
-export type PresentPaymentOptionsResponse = { useGooglePay?: boolean; useApplePay?: boolean; paymentMethod?: PaymentMethod; };
-
 export type CustomerPaymentMethodsResponse = {
   paymentMethods: PaymentMethod[]
 };
@@ -194,6 +192,12 @@ export interface PaymentConfiguration {
   cardScanningEnabled?: boolean;
 }
 
+export interface CurrentPaymentOption {
+  loading?: boolean;
+  label?: string;
+  imageDataUrl?: string;
+}
+
 export interface StripePlugin {
   setPublishableKey(opts:SetPublishableKeyOptions): Promise<void>;
 
@@ -205,7 +209,11 @@ export interface StripePlugin {
   setPaymentContextFailedToLoadCallback(cb:(data:{error:string}) => void): Promise<CallbackID>;
   setPaymentContextCreatedPaymentResultCallback(cb:(data:{paymentMethod:PaymentMethod}) => void): Promise<CallbackID>;
   paymentContextCreatedPaymentResultCompleted(opts:{callbackId:CallbackID, error?: string}): Promise<void>;
-  presentPaymentOptions(): Promise<void>;
+  setPaymentContextDidChangeCallback(cb:() => void): Promise<CallbackID>;
+  currentPaymentOption(): Promise<CurrentPaymentOption>
+
+  requestPayment(): Promise<void>;
+  showPaymentOptions(): Promise<void>;
 }
 
 export interface PaymentMethod {

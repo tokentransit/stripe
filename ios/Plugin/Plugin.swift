@@ -5,10 +5,6 @@ import PassKit
 
 @objc(StripePlugin)
 public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymentContextDelegate {
-    public func paymentContextDidChange(_ paymentContext: STPPaymentContext) {
-        print("payment context changed in StripePlugin: \(paymentContext)")
-    }
-
     private var customerCtx: STPCustomerContext?
     private var customerKeyCallback: CAPPluginCall?
     private var customerKeyCompletion: STPJSONResponseCompletionBlock?
@@ -17,9 +13,10 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     private var paymentCtxFailedToLoadCallback: CAPPluginCall?
     private var paymentContextCreatedPaymentResultCallback: CAPPluginCall?
     private var paymentContextCreatedPaymentResultCompletion: STPPaymentStatusBlock?
+    private var paymentContextDidChangeCallback: CAPPluginCall?
     private var paymentDidFinishCallback: CAPPluginCall?
 
-    private var presentPaymentOptionsCallback: CAPPluginCall?
+    private var requestPaymentCallback: CAPPluginCall?
 
     enum StripePluginError: Error {
         case missingArgument
@@ -159,7 +156,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         call.success()
     }
 
-    // updatePaymentContext creates or updates the payment context, which must be created before presentPaymentOptions is called. Takes either no parameters, or amount and currency. If amount and currency are set, the payment context's amount and currency will be updated.
+    // updatePaymentContext creates or updates the payment context, which must be created before requestPayment is called. Takes either no parameters, or amount and currency. If amount and currency are set, the payment context's amount and currency will be updated.
     @objc func updatePaymentContext(_ call: CAPPluginCall) {
         let ctx = paymentCtx ?? {
             let newCtx = STPPaymentContext(customerContext: getCustomerContext())
@@ -195,13 +192,50 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         paymentContextCreatedPaymentResultCallback = call
     }
 
-    @objc func presentPaymentOptions(_ call: CAPPluginCall) {
-        if let presentPaymentOptionsCallback = presentPaymentOptionsCallback {
-            bridge.releaseCall(presentPaymentOptionsCallback)
+    @objc func setPaymentContextDidChangeCallback(_ call: CAPPluginCall) {
+        if let paymentContextDidChangeCallback = paymentContextDidChangeCallback {
+            bridge.releaseCall(paymentContextDidChangeCallback)
+        }
+        call.isSaved = true
+        paymentContextDidChangeCallback = call
+    }
+
+    @objc func requestPayment(_ call: CAPPluginCall) {
+        if let requestPaymentCallback = requestPaymentCallback {
+            bridge.releaseCall(requestPaymentCallback)
         }
 
-        presentPaymentOptionsCallback = call
+        requestPaymentCallback = call
         paymentCtx?.requestPayment()
+    }
+
+    @objc func showPaymentOptions(_ call: CAPPluginCall) {
+        paymentCtx?.pushPaymentOptionsViewController()
+    }
+
+    // currentPaymentOption returns an object:
+    //   - loading: true (if loading), no other keys will be set
+    //   - label: string ("Apple Pay" or "Visa 4242")
+    //   - imageDataUrl: string, image encoded as base64 image data usable by a browser as an img src
+    @objc func currentPaymentOption(_ call: CAPPluginCall) {
+        guard let paymentCtx = paymentCtx else {
+            call.error("no payment context")
+            return
+        }
+
+        var result: [String:Any] = [:]
+        if paymentCtx.loading {
+            result["loading"] = true
+        } else {
+            if let selectedPaymentOption = paymentCtx.selectedPaymentOption {
+                result["label"] = selectedPaymentOption.label
+                if let png = selectedPaymentOption.image.pngData() {
+                    result["imageDataUrl"] = "data:image/png;base64," + png.base64EncodedString()
+                }
+            }
+        }
+
+        call.success(result)
     }
 
     // paymentContextCreatedPaymentResultCompleted updates the Stripe library with the server response to the payment result callback. It requires the following parameters:
@@ -260,17 +294,26 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     }
 
     @objc public func paymentContext(_ paymentContext: STPPaymentContext, didFinishWith status: STPPaymentStatus, error: Error?) {
-        guard let presentPaymentOptionsCallback = self.presentPaymentOptionsCallback else {
+        guard let requestPaymentCallback = self.requestPaymentCallback else {
             return
         }
 
         switch status {
         case .error:
-            presentPaymentOptionsCallback.error(error?.localizedDescription ?? "error")
+            requestPaymentCallback.error(error?.localizedDescription ?? "error")
         case .userCancellation:
-            presentPaymentOptionsCallback.success(["userCancellation": true])
+            requestPaymentCallback.success(["userCancellation": true])
         case .success:
-            presentPaymentOptionsCallback.success([:])
+            requestPaymentCallback.success([:])
         }
     }
+
+    @objc public func paymentContextDidChange(_ paymentContext: STPPaymentContext) {
+        guard let paymentContextDidChangeCallback = paymentContextDidChangeCallback else {
+            return
+        }
+
+        paymentContextDidChangeCallback.resolve()
+    }
+
 }
