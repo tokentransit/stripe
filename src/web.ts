@@ -17,6 +17,7 @@ import {
   ConfirmSetupIntentResponse,
   CreatePiiTokenOptions,
   CreateSourceTokenOptions,
+  CurrentPaymentOption,
   CustomerPaymentMethodsResponse,
   FinalizeApplePayTransactionOptions,
   GooglePayOptions,
@@ -24,7 +25,6 @@ import {
   IdentifyCardBrandOptions,
   PaymentConfiguration,
   PaymentMethod,
-  PresentPaymentOptionsResponse,
   SetPublishableKeyOptions,
   StripePlugin,
   TokenResponse,
@@ -188,7 +188,21 @@ export class StripePluginWeb extends WebPlugin implements StripePlugin {
     return;
   }
 
-  async presentPaymentOptions(): Promise<void> {
+  async setPaymentContextDidChangeCallback(cb: () => void): Promise<CallbackID> {
+    return;
+  }
+
+  async currentPaymentOption(): Promise<CurrentPaymentOption> {
+    return {
+      loading: true
+    }
+  }
+
+  async requestPayment(): Promise<void> {
+    return;
+  }
+
+  async showPaymentOptions(): Promise<void> {
     return;
   }
 
