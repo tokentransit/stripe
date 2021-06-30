@@ -21,4 +21,6 @@ CAP_PLUGIN(StripePlugin, "Stripe",
     CAP_PLUGIN_METHOD(showPaymentOptions, CAPPluginReturnNone);
 
     CAP_PLUGIN_METHOD(currentPaymentMethod, CAPPluginReturnPromise);
+
+    CAP_PLUGIN_METHOD(clearContext, CAPPluginReturnNone);
 )

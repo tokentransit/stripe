@@ -113,6 +113,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     // MARK: Payment Context
 
     // setPaymentConfiguration updates the shared payment configuration. It accepts the following:
+    //   - googlePayEnabled: bool, not applicable on iOS
     //   - applePayEnabled: bool
     //   - fpxEnabled: bool
     //   - requiredBillingAddressFields: string containing one of: "none", "postalCode", "zip", "full", "name"
@@ -328,4 +329,11 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         paymentContextDidChangeCallback.resolve()
     }
 
+    @objc func clearContext(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.customerCtx = nil
+            self.paymentCtx = nil
+            call.success()
+        }
+    }
 }

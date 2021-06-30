@@ -206,6 +206,10 @@ export class StripePluginWeb extends WebPlugin implements StripePlugin {
     return;
   }
 
+  async clearContext(): Promise<void> {
+    return;
+  }
+
   async isApplePayAvailable(): Promise<AvailabilityResponse> {
     return { available: false };
   }

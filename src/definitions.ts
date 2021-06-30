@@ -183,8 +183,9 @@ export interface ConfirmSetupIntentResponse {
 }
 
 export interface PaymentConfiguration {
-  applePayEnabled?: boolean;
-  fpxEnabled?: boolean;
+  applePayEnabled?: boolean; // Not used on Android
+  googlePayEnabled?: boolean; // Not used on iOS (nor used on Android yet)
+  fpxEnabled?: boolean; // Not used
   requiredBillingAddressFields?: "none" | "postalCode" | "zip" | "full" | "name";
   companyName?: string
   appleMerchantIdentifier?: string
@@ -199,21 +200,60 @@ export interface CurrentPaymentOption {
 }
 
 export interface StripePlugin {
+  // setPublishableKey sets the Stripe publishable key.
+  // ex: setPublishableKey({key:"pk_test_xxx"});
   setPublishableKey(opts:SetPublishableKeyOptions): Promise<void>;
 
+  // setCustomerKeyCallback takes a callback that is called repeatedly when the Stripe library needs to refresh the customer key. Inside the callback, customerKeyCompleted must be called.
+  // For example:
+  //   setCustomerKeyCallback((data:{apiVersion: string, callbackId: string}) => {
+  //     ephemeralKeyApiCall(data.apiVersion).subscribe(async result => {
+  //       await customerKeyCompleted({callbackId:data.callbackId, response:result})
+  //     });
+  //   });
   setCustomerKeyCallback(cb:(data:{apiVersion:string, callbackId:CallbackID}) => void): Promise<CallbackID>;
-  customerKeyCompleted(opts:{callbackId: CallbackID, response: any}): Promise<void>;
 
-  updatePaymentContext(opts:{amount?:number,currency?:string}): Promise<void>;
+  // customerKeyCompleted updates the Stripe library with the server response ephemeral key. It requires the following parameters:
+  //   - "callbackId": string id sent in the callback of setCustomerEphemeralKeyProvider
+  // and one of:
+  //   - "response": parsed JSON object of the server response
+  //   - "error": string error message
+  customerKeyCompleted(opts:{callbackId:CallbackID, response:any}): Promise<void>;
+
+  // updatePaymentContext creates or updates the payment context with a price. If there is no current price, provide 0 as amount.
+  // For example:
+  //   updatePaymentContext({
+  //     amount: 0, // Specified in cents for USD.
+  //     currency: "USD"
+  //   });
+  updatePaymentContext(opts:{amount:number, currency:string}): Promise<void>;
+
+  // setPaymentConfiguration sets up the global stripe payment configuration.
   setPaymentConfiguration(opts:PaymentConfiguration): Promise<void>;
+
+  // setPaymentContextFailedToLoadCallback sets up a callback that is called when the payment context fails to load. This can be due to server or network error.
   setPaymentContextFailedToLoadCallback(cb:(data:{error:string}) => void): Promise<CallbackID>;
+
+  // setPaymentContextCreatedPaymentResultCallback sets up a callback that is called with the payment context creates a payment method.
   setPaymentContextCreatedPaymentResultCallback(cb:(data:{paymentMethod:PaymentMethod}) => void): Promise<CallbackID>;
-  paymentContextCreatedPaymentResultCompleted(opts:{callbackId:CallbackID, error?: string}): Promise<void>;
+
+  // paymentContextCreatedPaymentResultCompleted should be called inside the callback set in setPaymentContextCreatedPaymentResultCallback to indicate the successful completion of processing the payment method.
+  paymentContextCreatedPaymentResultCompleted(opts:{callbackId:CallbackID, error?:string}): Promise<void>;
+
+  // setPaymentContextDidChangeCallback sets up a callback that is called when the payment context changes, either the selected payment option or purchase amount.
   setPaymentContextDidChangeCallback(cb:() => void): Promise<CallbackID>;
+
+  // currentPaymentOption returns the current payment option. If loading=true, the current payment option is still being fetched from the network. If label is set, this is the name of the current payment option. if imageDataUrl is set, this is a logo image for the payment method type. If no fields are set there is no option selected.
   currentPaymentOption(): Promise<CurrentPaymentOption>
 
+  // requestPayment calls stripe to request payment for the configured payment option for the requested payment amount.
   requestPayment(): Promise<void>;
+
+  // showPaymentOptions shows a UI to select a user's payment option.
   showPaymentOptions(): Promise<void>;
+
+  // clearContext clears the customer and payment context. This should be called when payment is complete or the user logs out.
+  clearContext(): Promise<void>;
 }
 
 export interface PaymentMethod {
