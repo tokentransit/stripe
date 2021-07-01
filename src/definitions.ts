@@ -218,7 +218,7 @@ export interface StripePlugin {
   // and one of:
   //   - "response": parsed JSON object of the server response
   //   - "error": string error message
-  customerKeyCompleted(opts:{callbackId:CallbackID, response:any}): Promise<void>;
+  customerKeyCompleted(opts:{callbackId:CallbackID, response?:any, error?:any}): Promise<void>;
 
   // updatePaymentContext creates or updates the payment context with a price. If there is no current price, provide 0 as amount.
   // For example:
