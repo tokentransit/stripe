@@ -9,7 +9,7 @@ import com.stripe.android.*
 import com.stripe.android.view.BillingAddressFields
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import com.stripe.android.Stripe as StripeInstance
 
 
@@ -53,7 +53,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun setPublishableKey(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "setPublishableKey")
 
@@ -61,7 +61,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
                 if (key == null || key == "") {
                     call.error("you must provide a valid key")
-                    return@async
+                    return@launch
                 }
 
                 stripeInstance = StripeInstance(context, key)
@@ -74,7 +74,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         }
     }
 
-    fun resetCustomerContext(context: Context): CustomerSession? {
+    private fun resetCustomerContext(context: Context): CustomerSession? {
         Log.i(TAG, "resetCustomerContext")
 
         PaymentConfiguration.init(context, publishableKey)
@@ -88,13 +88,13 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     // Implements EphemeralKeyProvider.
     override fun createEphemeralKey(apiVersion: String, keyUpdateListener: EphemeralKeyUpdateListener) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             Log.i(TAG, "createEphemeralKey: apiVersion $apiVersion")
 
             val callback = customerKeyCallback ?: run {
                 Log.w(TAG, "customerKeyCallback is null in createEphemeralKey")
                 keyUpdateListener.onKeyUpdateFailure(400, "no customerKeyCallback configured")
-                return@async
+                return@launch
             }
 
             customerKeyListener = keyUpdateListener
@@ -109,13 +109,11 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
     fun setCustomerKeyCallback(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "setCustomerKeyCallback")
 
-                customerKeyCallback?.let {
-                    it.release(bridge)
-                }
+                customerKeyCallback?.release(bridge)
 
                 call.save()
                 customerKeyCallback = call
@@ -127,32 +125,32 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun customerKeyCompleted(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "customerKeyCompleted")
 
                 val listener = customerKeyListener ?: run {
                     call.error("customerKeyListener must be set")
-                    return@async
+                    return@launch
                 }
 
-                val callbackId = call.data.getString("callbackId")
+                val callbackId = call.data.getString("callbackId", null)
                 if (callbackId == null) {
                     call.error("callbackId must not be empty")
-                    return@async
+                    return@launch
                 }
 
                 val callback = customerKeyCallback ?: run {
                     call.error("customerKeyCallback must not be null")
-                    return@async
+                    return@launch
                 }
 
                 if (callback.callbackId != callbackId) {
                     call.error("customerKeyCallback callbackId must be equal to callbackId")
-                    return@async
+                    return@launch
                 }
 
-                val error = call.data.getString("error")
+                val error = call.data.getString("error", null)
                 if (error != null) {
                     listener.onKeyUpdateFailure(400, error)
                     call.success()
@@ -168,15 +166,18 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_PROMISE)
     fun setPaymentConfiguration(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "setPaymentConfiguration")
 
                 // ignore applePayEnabled, it doesn't make sense on Android.
-                call.data.getBool("googlePayEnabled")
-                    ?.let { paymentConfig.googlePayEnabled = it }
-                call.data.getBool("fpxEnabled")?.let { paymentConfig.fpxEnabled = it }
-                call.data.getString("requiredBillingAddressFields")?.let {
+                call.data.getBoolean("googlePayEnabled", null)?.let {
+                        paymentConfig.googlePayEnabled = it
+                }
+                call.data.getBoolean("fpxEnabled", null)?.let {
+                    paymentConfig.fpxEnabled = it
+                }
+                call.data.getString("requiredBillingAddressFields", null)?.let {
                     paymentConfig.requiredBillingAddressFields = when (it) {
                         "none" -> BillingAddressFields.None
                         "postalCode" -> BillingAddressFields.PostalCode
@@ -186,13 +187,13 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                         }
                     }
                 }
-                call.data.getString("companyName")?.let {
+                call.data.getString("companyName", null)?.let {
                     paymentConfig.companyName = it
                 }
-                call.data.getBool("canDeletePaymentOptions")?.let {
+                call.data.getBoolean("canDeletePaymentOptions", null)?.let {
                     paymentConfig.canDeletePaymentOptions = it
                 }
-                call.data.getBool("cardScanningEnabled")?.let {
+                call.data.getBoolean("cardScanningEnabled", null)?.let {
                     paymentConfig.cardScanningEnabled = it
                 }
                 call.success()
@@ -204,11 +205,13 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun updatePaymentContext(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "updatePaymentContext")
 
-                val cs = customerSession ?: resetCustomerContext(context)
+                if (customerSession == null) {
+                    resetCustomerContext(context)
+                }
 
                 if (paymentSession == null) {
                     val result =
@@ -217,10 +220,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                     paymentSession = result
                 }
 
-                var amount: Long = 0
-                call.data.getLong("amount")?.let {
-                    amount = it
-                }
+                val amount = call.data.optLong("amount", 0L)
 
                 paymentSession?.setCartTotal(amount)
             } catch (e: Exception) {
@@ -231,7 +231,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
     fun setPaymentContextFailedToLoadCallback(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "setPaymentContextFailedToLoadCallback")
 
@@ -252,7 +252,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
     fun setPaymentContextCreatedPaymentResultCallback(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "setPaymentContextCreatedPaymentResultCallback")
 
@@ -273,7 +273,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
     fun setPaymentContextDidChangeCallback(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "setPaymentContextDidChangeCallback")
 
@@ -294,7 +294,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun requestPayment(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "requestPayment")
 
@@ -314,7 +314,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun showPaymentOptions(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "showPaymentOptions")
 
@@ -334,7 +334,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_PROMISE)
     fun currentPaymentOption(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "currentPaymentOption")
 
@@ -357,7 +357,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun paymentContextCreatedPaymentResultCompleted(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "paymentContextCreatedPaymentResultCompleted")
 
@@ -373,7 +373,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
     fun clearContext(call: PluginCall) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             try {
                 Log.i(TAG, "clearContext")
 
@@ -389,20 +389,20 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     }
 
     override fun onCommunicatingStateChanged(isCommunicating: Boolean) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             Log.i(TAG, "onCommunicatingStateChanged(${isCommunicating})")
         }
     }
 
     override fun onError(errorCode: Int, errorMessage: String) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             Log.w(TAG, "onError($errorCode, $errorMessage)")
             val callback = paymentSessionFailedToLoadCallback ?: run {
                 Log.w(
                     TAG,
                     "onError($errorCode, $errorMessage) returned but paymentSessionFailedToLoadCallback is null"
                 )
-                return@async
+                return@launch
             }
 
             val result = JSObject()
@@ -412,10 +412,13 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     }
 
     override fun onPaymentSessionDataChanged(data: PaymentSessionData) {
-        GlobalScope.async(context = Dispatchers.Main) {
+        GlobalScope.launch(context = Dispatchers.Main) {
             Log.i(TAG, "onPaymentSessionDataChanged")
 
             currentPaymentSessionData = data
+            paymentSessionDidChangeCallback?.let {
+                it.resolve()
+            }
         }
     }
 
