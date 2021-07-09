@@ -1,11 +1,14 @@
 package ca.zyra.capacitor.stripe
 
 import com.getcapacitor.JSObject
+import com.google.android.gms.tasks.Task
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.stripe.android.ApiResultCallback
 import com.stripe.android.model.*
 import org.json.JSONObject
 import java.util.*
+import kotlin.coroutines.suspendCoroutine
 
 internal const val LOAD_PAYMENT_DATA_REQUEST_CODE = 9972
 internal const val STRIPE_PAYMENT_METHODS_REQ_CODE = 6000
@@ -148,4 +151,22 @@ internal fun pmToJson(pm: PaymentMethod): JSObject {
         obj.put("card", co)
     }
     return obj
+}
+
+internal suspend fun <T> waitForTask(t: Task<T>): Task<T> = suspendCoroutine { cont ->
+    t.addOnCompleteListener {
+        cont.resumeWith(Result.success(t))
+    }
+}
+
+internal suspend fun <T : StripeModel> waitForStripe(run: (ApiResultCallback<T>) -> Unit): T = suspendCoroutine { cont ->
+    run(object : ApiResultCallback<T> {
+        override fun onError(e: Exception) {
+            cont.resumeWith(Result.failure(e))
+        }
+
+        override fun onSuccess(result: T) {
+            cont.resumeWith(Result.success(result))
+        }
+    })
 }
