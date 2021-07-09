@@ -3,6 +3,7 @@ package ca.zyra.capacitor.stripe
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.activity.ComponentActivity
 import com.getcapacitor.*
@@ -33,7 +34,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     private var customerKeyListener: EphemeralKeyUpdateListener? = null
 
     private var paymentSession: PaymentSession? = null
-    private var currentPaymentSessionData: PaymentSessionData? = null
+    private var currentPaymentSessionData: WrappedPaymentSessionData? = null
     private var paymentSessionFailedToLoadCallback: PluginCall? = null
     private var paymentSessionCreatedPaymentResultCallback: PluginCall? = null
     private var paymentSessionDidChangeCallback: PluginCall? = null
@@ -66,6 +67,15 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 .setCanDeletePaymentMethods(canDeletePaymentOptions)
                 .build()
         }
+    }
+
+    private val PREF_STORE = "capacitor_stripe_plugin"
+    private val GPAY_PREF = "use_gpay"
+
+    private lateinit var prefStore: SharedPreferences
+
+    override fun load() {
+        prefStore = context.getSharedPreferences(PREF_STORE, Context.MODE_PRIVATE)
     }
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
@@ -327,11 +337,11 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
                 requestPaymentCallback = call
 
-                val paymentSessionData = currentPaymentSessionData ?: throw Exception("No currentPaymentSessionData")
-                val paymentMethod = if (paymentSessionData.useGooglePay) {
+                val wrappedPaymentSessionData = currentPaymentSessionData ?: throw Exception("No currentPaymentSessionData")
+                val paymentMethod = if (wrappedPaymentSessionData.useGooglePay) {
                     payWithGoogle()
                 } else {
-                    paymentSessionData.paymentMethod ?: throw Exception("No currentPaymentSessionData paymentMethod")
+                    wrappedPaymentSessionData.paymentSessionData.paymentMethod ?: throw Exception("No currentPaymentSessionData paymentMethod")
                 }
 
                 paymentSessionCreatedPaymentResultCallback?.let {
@@ -410,8 +420,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                     val label = if (it.useGooglePay) {
                         "Google Pay"
                     } else {
-                        val name = it.paymentMethod?.card?.brand?.displayName ?: ""
-                        val last4 = it.paymentMethod?.card?.last4 ?: ""
+                        val pm = it.paymentSessionData.paymentMethod
+                        val name = pm?.card?.brand?.displayName ?: ""
+                        val last4 = pm?.card?.last4 ?: ""
                         "$name $last4"
                     }
 
@@ -454,6 +465,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 paymentSession = null
                 googlePaymentsClient = null
                 googlePayAvailable = null
+                prefStore.edit().clear().apply()
 
                 call.success()
             } catch (e: Exception) {
@@ -489,7 +501,18 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         GlobalScope.launch(context = Dispatchers.Main) {
             Log.i(TAG, "onPaymentSessionDataChanged")
 
-            currentPaymentSessionData = data
+            val useGooglePay = if (data.useGooglePay == false && data.paymentMethod == null) {
+                // Nothing selected / remembered by Stripe. Fill in our memory of whether the user
+                // selected gpay last time.
+                prefStore.getBoolean(GPAY_PREF, false)
+            } else {
+                // User selected something via Stripe, remember whether they want to use gpay (using
+                // apply() to write asynchronously).
+                prefStore.edit().putBoolean(GPAY_PREF, data.useGooglePay).apply()
+                data.useGooglePay
+            }
+
+            currentPaymentSessionData = WrappedPaymentSessionData(useGooglePay, data)
             paymentSessionDidChangeCallback?.let {
                 it.resolve()
             }
