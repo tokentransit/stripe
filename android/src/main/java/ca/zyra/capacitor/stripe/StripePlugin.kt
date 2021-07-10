@@ -1,15 +1,25 @@
 package ca.zyra.capacitor.stripe
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.activity.ComponentActivity
 import com.getcapacitor.*
+import com.google.android.gms.wallet.AutoResolveHelper
+import com.google.android.gms.wallet.PaymentData
+import com.google.android.gms.wallet.PaymentsClient
 import com.stripe.android.*
+import com.stripe.android.model.PaymentMethod
+import com.stripe.android.model.PaymentMethodCreateParams
 import com.stripe.android.view.BillingAddressFields
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.suspendCoroutine
 import com.stripe.android.Stripe as StripeInstance
 
 
@@ -24,12 +34,20 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     private var customerKeyListener: EphemeralKeyUpdateListener? = null
 
     private var paymentSession: PaymentSession? = null
-    private var currentPaymentSessionData: PaymentSessionData? = null
+    private var currentPaymentSessionData: WrappedPaymentSessionData? = null
     private var paymentSessionFailedToLoadCallback: PluginCall? = null
     private var paymentSessionCreatedPaymentResultCallback: PluginCall? = null
     private var paymentSessionDidChangeCallback: PluginCall? = null
 
     private var requestPaymentCallback: PluginCall? = null
+
+    private var totalAmount = 0L
+
+    private var googlePaymentsClient: PaymentsClient? = null
+    private var googlePayAvailable: Boolean? = null
+    private var googlePayContinuation: Continuation<ActivityResult>? = null
+
+    private data class ActivityResult(val resultCode: Int, val data: Intent?)
 
     private var paymentConfig = PaymentConfig()
     private data class PaymentConfig(
@@ -49,6 +67,15 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 .setCanDeletePaymentMethods(canDeletePaymentOptions)
                 .build()
         }
+    }
+
+    private val PREF_STORE = "capacitor_stripe_plugin"
+    private val GPAY_PREF = "use_gpay"
+
+    private lateinit var prefStore: SharedPreferences
+
+    override fun load() {
+        prefStore = context.getSharedPreferences(PREF_STORE, Context.MODE_PRIVATE)
     }
 
     @PluginMethod(returnType = PluginMethod.RETURN_NONE)
@@ -74,7 +101,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         }
     }
 
-    private fun resetCustomerContext(context: Context): CustomerSession? {
+    private suspend fun resetCustomerContext(context: Context): CustomerSession? {
         Log.i(TAG, "resetCustomerContext")
 
         PaymentConfiguration.init(context, publishableKey)
@@ -82,6 +109,13 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         CustomerSession.endCustomerSession()
         CustomerSession.initCustomerSession(context, this, true)
         customerSession = CustomerSession.getInstance()
+
+        val client = googlePayPaymentsClient(context, getGooglePayEnv(isTest))
+        googlePaymentsClient = client
+        val isReadyToPayRequest = waitForTask(client.isReadyToPay(googlePayReadyRequest()))
+        googlePayAvailable = isReadyToPayRequest.isSuccessful
+
+        totalAmount = 0
 
         return customerSession
     }
@@ -214,14 +248,17 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 }
 
                 if (paymentSession == null) {
+                    val config = paymentConfig.copy(
+                            googlePayEnabled = paymentConfig.googlePayEnabled && (googlePayAvailable ?: false)
+                    )
                     val result =
-                        PaymentSession(activity as ComponentActivity, paymentConfig.config())
+                        PaymentSession(activity as ComponentActivity, config.config())
                     result.init(this@Stripe)
                     paymentSession = result
                 }
 
                 val amount = call.data.optLong("amount", 0L)
-
+                totalAmount = amount
                 paymentSession?.setCartTotal(amount)
             } catch (e: Exception) {
                 call.error("Unable to update payment context: ${e.localizedMessage}", e)
@@ -299,16 +336,56 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 Log.i(TAG, "requestPayment")
 
                 requestPaymentCallback = call
-                val paymentMethod = currentPaymentSessionData?.paymentMethod ?: throw Exception("No currentPaymentSessionData paymentMethod")
+
+                val wrappedPaymentSessionData = currentPaymentSessionData ?: throw Exception("No currentPaymentSessionData")
+                val paymentMethod = if (wrappedPaymentSessionData.useGooglePay) {
+                    payWithGoogle()
+                } else {
+                    wrappedPaymentSessionData.paymentSessionData.paymentMethod ?: throw Exception("No currentPaymentSessionData paymentMethod")
+                }
 
                 paymentSessionCreatedPaymentResultCallback?.let {
                     val result = JSObject()
-                    result.put("paymentMethod", pmToJson(paymentMethod))
+                    result.put("paymentMethod", paymentMethod?.let { pm -> pmToJson(pm) })
                     it.success(result)
                 }
             } catch (e: Exception) {
                 call.error("Unable to request payment: ${e.localizedMessage}", e)
             }
+        }
+    }
+
+    private suspend fun payWithGoogle(): PaymentMethod? {
+        val client = googlePaymentsClient ?: throw Exception("No googlePaymentsClient")
+        val totalPrice = "${totalAmount / 100}.${totalAmount % 100}"
+        val request = JSObject()
+                .put("transactionInfo", JSObject()
+                        .put("totalPrice", totalPrice)
+                        .put("totalPriceStatus", "FINAL")
+                        .put("currencyCode", "USD"))
+                .put("merchantInfo", JSObject()
+                        .put("merchantName", paymentConfig.companyName))
+        val activityResult = suspendCoroutine<ActivityResult> { cont ->
+            googlePayContinuation = cont
+            AutoResolveHelper.resolveTask(
+                    client.loadPaymentData(googlePayDataRequest(publishableKey, request)),
+                    activity,
+                    LOAD_PAYMENT_DATA_REQUEST_CODE
+            )
+        }
+        return when (activityResult.resultCode) {
+            Activity.RESULT_OK -> {
+                val paymentData = activityResult.data?.let { PaymentData.getFromIntent(it) }
+                        ?: throw Exception("Unable to get payment data from Google Pay result")
+                val paymentMethodCreateParams = PaymentMethodCreateParams.createFromGooglePay(JSONObject(paymentData.toJson()))
+                return waitForStripe { cb -> stripeInstance.createPaymentMethod(paymentMethodCreateParams, callback = cb) }
+            }
+            Activity.RESULT_CANCELED -> null
+            AutoResolveHelper.RESULT_ERROR -> {
+                val status = AutoResolveHelper.getStatusFromIntent(activityResult.data)
+                throw Exception("Error invoking Google Pay: $status")
+            }
+            else -> throw Exception("Unexpected result from Google Pay")
         }
     }
 
@@ -340,10 +417,16 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
                 val result = JSObject()
                 currentPaymentSessionData?.let {
-                    val name = it.paymentMethod?.card?.brand?.displayName
-                    val last4 = it.paymentMethod?.card?.last4
+                    val label = if (it.useGooglePay) {
+                        "Google Pay"
+                    } else {
+                        val pm = it.paymentSessionData.paymentMethod
+                        val name = pm?.card?.brand?.displayName ?: ""
+                        val last4 = pm?.card?.last4 ?: ""
+                        "$name $last4"
+                    }
 
-                    result.put("label", (name ?: "") + " " + (last4 ?: ""))
+                    result.put("label", label)
 
                     // The icon resource is: it.paymentMethod?.card?.brand?.icon but we don't have a way to load this into the same format (a data url) as iOS.
                 }
@@ -380,6 +463,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 CustomerSession.endCustomerSession()
                 customerSession = null
                 paymentSession = null
+                googlePaymentsClient = null
+                googlePayAvailable = null
+                prefStore.edit().clear().apply()
 
                 call.success()
             } catch (e: Exception) {
@@ -415,7 +501,18 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         GlobalScope.launch(context = Dispatchers.Main) {
             Log.i(TAG, "onPaymentSessionDataChanged")
 
-            currentPaymentSessionData = data
+            val useGooglePay = if (data.useGooglePay == false && data.paymentMethod == null) {
+                // Nothing selected / remembered by Stripe. Fill in our memory of whether the user
+                // selected gpay last time.
+                prefStore.getBoolean(GPAY_PREF, false)
+            } else {
+                // User selected something via Stripe, remember whether they want to use gpay (using
+                // apply() to write asynchronously).
+                prefStore.edit().putBoolean(GPAY_PREF, data.useGooglePay).apply()
+                data.useGooglePay
+            }
+
+            currentPaymentSessionData = WrappedPaymentSessionData(useGooglePay, data)
             paymentSessionDidChangeCallback?.let {
                 it.resolve()
             }
@@ -423,7 +520,11 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     }
 
     override fun handleOnActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.handleOnActivityResult(requestCode, resultCode, data)
-        paymentSession?.handlePaymentData(requestCode, resultCode, data)
+        if (requestCode == LOAD_PAYMENT_DATA_REQUEST_CODE) {
+            googlePayContinuation?.resumeWith(Result.success(ActivityResult(resultCode, data)))
+        } else {
+            super.handleOnActivityResult(requestCode, resultCode, data)
+            paymentSession?.handlePaymentData(requestCode, resultCode, data)
+        }
     }
 }
