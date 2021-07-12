@@ -462,7 +462,17 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
                 CustomerSession.endCustomerSession()
                 customerSession = null
+                paymentSession?.init(object : PaymentSession.PaymentSessionListener {
+                    override fun onCommunicatingStateChanged(isCommunicating: Boolean) {}
+
+                    override fun onError(errorCode: Int, errorMessage: String) {}
+
+                    override fun onPaymentSessionDataChanged(data: PaymentSessionData) {}
+                })
+                paymentSession?.setCartTotal(0)
+                paymentSession?.clearPaymentMethod()
                 paymentSession = null
+                currentPaymentSessionData = null
                 googlePaymentsClient = null
                 googlePayAvailable = null
                 prefStore.edit().clear().apply()
