@@ -28,7 +28,6 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     private lateinit var stripeInstance: StripeInstance
     private lateinit var publishableKey: String
     private var isTest = true
-    private var customerSession: CustomerSession? = null
 
     private var customerKeyCallback: PluginCall? = null
     private var customerKeyListener: EphemeralKeyUpdateListener? = null
@@ -38,6 +37,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     private var paymentSessionFailedToLoadCallback: PluginCall? = null
     private var paymentSessionCreatedPaymentResultCallback: PluginCall? = null
     private var paymentSessionDidChangeCallback: PluginCall? = null
+    private var loading: Boolean = false
 
     private var requestPaymentCallback: PluginCall? = null
 
@@ -60,6 +60,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     ) {
         fun config(): PaymentSessionConfig {
             return PaymentSessionConfig.Builder()
+                .setShouldPrefetchCustomer(false)
                 .setShouldShowGooglePay(googlePayEnabled)
                 .setBillingAddressFields(requiredBillingAddressFields)
                 .setShippingInfoRequired(false)
@@ -101,14 +102,13 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         }
     }
 
-    private suspend fun resetCustomerContext(context: Context): CustomerSession? {
+    private suspend fun resetCustomerContext(context: Context) {
         Log.i(TAG, "resetCustomerContext")
 
         PaymentConfiguration.init(context, publishableKey)
 
         CustomerSession.endCustomerSession()
         CustomerSession.initCustomerSession(context, this, true)
-        customerSession = CustomerSession.getInstance()
 
         val client = googlePayPaymentsClient(context, getGooglePayEnv(isTest))
         googlePaymentsClient = client
@@ -116,8 +116,6 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         googlePayAvailable = isReadyToPayRequest.isSuccessful
 
         totalAmount = 0
-
-        return customerSession
     }
 
     // Implements EphemeralKeyProvider.
@@ -243,7 +241,10 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
             try {
                 Log.i(TAG, "updatePaymentContext")
 
-                if (customerSession == null) {
+                // Ensure that the CustomerSession singleton is configured. (There's no non-exceptional way to check for this in the Stripe library)
+                try {
+                    CustomerSession.getInstance()
+                } catch (e: Exception) {
                     resetCustomerContext(context)
                 }
 
@@ -416,19 +417,25 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 Log.i(TAG, "currentPaymentOption")
 
                 val result = JSObject()
-                currentPaymentSessionData?.let {
-                    val label = if (it.useGooglePay) {
-                        "Google Pay"
-                    } else {
-                        val pm = it.paymentSessionData.paymentMethod
-                        val name = pm?.card?.brand?.displayName ?: ""
-                        val last4 = pm?.card?.last4 ?: ""
-                        "$name $last4"
+                if (loading) {
+                    result.put("loading", true)
+                } else {
+                    currentPaymentSessionData?.let {
+                        val label = if (it.useGooglePay) {
+                            "Google Pay"
+                        } else {
+                            val pm = it.paymentSessionData.paymentMethod
+                            val name = pm?.card?.brand?.displayName ?: ""
+                            val last4 = pm?.card?.last4 ?: ""
+                            "$name $last4"
+                        }
+
+                        Log.i(TAG, "Returning currentPaymentSessionData(useGooglePay: ${it.useGooglePay}, paymentMethod: ${it.paymentSessionData.paymentMethod?.id})")
+
+                        result.put("label", label)
+
+                        // The icon resource is: it.paymentMethod?.card?.brand?.icon but we don't have a way to load this into the same format (a data url) as iOS.
                     }
-
-                    result.put("label", label)
-
-                    // The icon resource is: it.paymentMethod?.card?.brand?.icon but we don't have a way to load this into the same format (a data url) as iOS.
                 }
 
                 call.success(result)
@@ -460,15 +467,6 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
             try {
                 Log.i(TAG, "clearContext")
 
-                CustomerSession.endCustomerSession()
-                customerSession = null
-                paymentSession?.init(object : PaymentSession.PaymentSessionListener {
-                    override fun onCommunicatingStateChanged(isCommunicating: Boolean) {}
-
-                    override fun onError(errorCode: Int, errorMessage: String) {}
-
-                    override fun onPaymentSessionDataChanged(data: PaymentSessionData) {}
-                })
                 paymentSession?.setCartTotal(0)
                 paymentSession?.clearPaymentMethod()
                 paymentSession = null
@@ -476,6 +474,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 googlePaymentsClient = null
                 googlePayAvailable = null
                 prefStore.edit().clear().apply()
+                CustomerSession.endCustomerSession()
 
                 call.success()
             } catch (e: Exception) {
@@ -487,12 +486,14 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
     override fun onCommunicatingStateChanged(isCommunicating: Boolean) {
         GlobalScope.launch(context = Dispatchers.Main) {
             Log.i(TAG, "onCommunicatingStateChanged(${isCommunicating})")
+            loading = true
         }
     }
 
     override fun onError(errorCode: Int, errorMessage: String) {
         GlobalScope.launch(context = Dispatchers.Main) {
             Log.w(TAG, "onError($errorCode, $errorMessage)")
+            loading = false
             val callback = paymentSessionFailedToLoadCallback ?: run {
                 Log.w(
                     TAG,
@@ -509,9 +510,10 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
     override fun onPaymentSessionDataChanged(data: PaymentSessionData) {
         GlobalScope.launch(context = Dispatchers.Main) {
+            loading = false
             Log.i(TAG, "onPaymentSessionDataChanged")
 
-            val useGooglePay = if (data.useGooglePay == false && data.paymentMethod == null) {
+            val useGooglePay = if (!data.useGooglePay && data.paymentMethod == null) {
                 // Nothing selected / remembered by Stripe. Fill in our memory of whether the user
                 // selected gpay last time.
                 prefStore.getBoolean(GPAY_PREF, false)
@@ -521,11 +523,11 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 prefStore.edit().putBoolean(GPAY_PREF, data.useGooglePay).apply()
                 data.useGooglePay
             }
+            val it = WrappedPaymentSessionData(useGooglePay, data)
+            Log.i(TAG, "Adding currentPaymentSessionData(useGooglePay: ${it.useGooglePay}, paymentMethod: ${it.paymentSessionData.paymentMethod?.id})")
+            currentPaymentSessionData = it
 
-            currentPaymentSessionData = WrappedPaymentSessionData(useGooglePay, data)
-            paymentSessionDidChangeCallback?.let {
-                it.resolve()
-            }
+            paymentSessionDidChangeCallback?.resolve()
         }
     }
 
