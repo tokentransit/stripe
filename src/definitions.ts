@@ -1,9 +1,3 @@
-declare module '@capacitor/core' {
-  interface PluginRegistry {
-    Stripe: StripePlugin;
-  }
-}
-
 export type CallbackID = string;
 
 export type StripeAccountIdOpt = {

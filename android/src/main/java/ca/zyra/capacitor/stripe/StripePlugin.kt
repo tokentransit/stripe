@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.activity.ComponentActivity
 import com.getcapacitor.*
+import com.getcapacitor.annotation.CapacitorPlugin
 import com.google.android.gms.wallet.AutoResolveHelper
 import com.google.android.gms.wallet.PaymentData
 import com.google.android.gms.wallet.PaymentsClient
@@ -23,7 +24,7 @@ import kotlin.coroutines.suspendCoroutine
 import com.stripe.android.Stripe as StripeInstance
 
 
-@NativePlugin(requestCodes = [9972, 50000, 50001, 6000])
+@CapacitorPlugin(requestCodes = [9972, 50000, 50001, 6000])
 class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionListener {
     private lateinit var stripeInstance: StripeInstance
     private lateinit var publishableKey: String
