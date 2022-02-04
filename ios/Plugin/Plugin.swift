@@ -166,6 +166,8 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         DispatchQueue.main.async {
             let ctx = self.paymentCtx ?? {
                 let newCtx = STPPaymentContext(customerContext: self.getCustomerContext())
+                assert(self.bridge != nil, "bridge is null?!")
+                assert(self.bridge?.viewController != nil, "viewController was null?!")
                 newCtx.hostViewController = self.bridge?.viewController
                 newCtx.delegate = self
                 return newCtx
@@ -201,7 +203,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
 
     @objc func setPaymentContextDidChangeCallback(_ call: CAPPluginCall) {
         if let paymentContextDidChangeCallback = paymentContextDidChangeCallback {
-            bridge.releaseCall(paymentContextDidChangeCallback)
+            bridge?.releaseCall(paymentContextDidChangeCallback)
         }
         call.isSaved = true
         paymentContextDidChangeCallback = call
@@ -210,7 +212,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     @objc func requestPayment(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             if let requestPaymentCallback = self.requestPaymentCallback {
-                self.bridge.releaseCall(requestPaymentCallback)
+                self.bridge?.releaseCall(requestPaymentCallback)
             }
 
             self.requestPaymentCallback = call
