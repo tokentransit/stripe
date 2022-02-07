@@ -1,4 +1,4 @@
-import { registerWebPlugin, WebPlugin } from '@capacitor/core';
+import { WebPlugin } from '@capacitor/core';
 import {
   AccountParams,
   ApplePayOptions,
@@ -331,9 +331,3 @@ class CustomerSession {
     return await this.listPm();
   }
 }
-
-const StripePluginInstance = new StripePluginWeb();
-
-export { StripePluginInstance };
-
-registerWebPlugin(StripePluginInstance);

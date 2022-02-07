@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.activity.ComponentActivity
 import com.getcapacitor.*
+import com.getcapacitor.annotation.CapacitorPlugin
 import com.google.android.gms.wallet.AutoResolveHelper
 import com.google.android.gms.wallet.PaymentData
 import com.google.android.gms.wallet.PaymentsClient
@@ -23,7 +24,7 @@ import kotlin.coroutines.suspendCoroutine
 import com.stripe.android.Stripe as StripeInstance
 
 
-@NativePlugin(requestCodes = [9972, 50000, 50001, 6000])
+@CapacitorPlugin(requestCodes = [9972, 50000, 50001, 6000])
 class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionListener {
     private lateinit var stripeInstance: StripeInstance
     private lateinit var publishableKey: String
@@ -88,16 +89,16 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 val key = call.getString("key")
 
                 if (key == null || key == "") {
-                    call.error("you must provide a valid key")
+                    call.reject("you must provide a valid key")
                     return@launch
                 }
 
                 stripeInstance = StripeInstance(context, key)
                 publishableKey = key
                 isTest = key.contains("test")
-                call.success()
+                call.resolve()
             } catch (e: Exception) {
-                call.error("unable to set publishable key: ${e.localizedMessage}", e)
+                call.reject("unable to set publishable key: ${e.localizedMessage}", e)
             }
         }
     }
@@ -150,7 +151,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 call.save()
                 customerKeyCallback = call
             } catch (e: Exception) {
-                call.error("Unable to set customer key callback: ${e.localizedMessage}", e)
+                call.reject("Unable to set customer key callback: ${e.localizedMessage}", e)
             }
         }
     }
@@ -162,36 +163,36 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 Log.i(TAG, "customerKeyCompleted")
 
                 val listener = customerKeyListener ?: run {
-                    call.error("customerKeyListener must be set")
+                    call.reject("customerKeyListener must be set")
                     return@launch
                 }
 
                 val callbackId = call.data.getString("callbackId", null)
                 if (callbackId == null) {
-                    call.error("callbackId must not be empty")
+                    call.reject("callbackId must not be empty")
                     return@launch
                 }
 
                 val callback = customerKeyCallback ?: run {
-                    call.error("customerKeyCallback must not be null")
+                    call.reject("customerKeyCallback must not be null")
                     return@launch
                 }
 
                 if (callback.callbackId != callbackId) {
-                    call.error("customerKeyCallback callbackId must be equal to callbackId")
+                    call.reject("customerKeyCallback callbackId must be equal to callbackId")
                     return@launch
                 }
 
                 val error = call.data.getString("error", null)
                 if (error != null) {
                     listener.onKeyUpdateFailure(400, error)
-                    call.success()
+                    call.resolve()
                 }
 
                 listener.onKeyUpdate(call.data.getJSObject("response").toString())
-                call.success()
+                call.resolve()
             } catch (e: Exception) {
-                call.error("Unable to call customer key completed: ${e.localizedMessage}", e)
+                call.reject("Unable to call customer key completed: ${e.localizedMessage}", e)
             }
         }
     }
@@ -228,9 +229,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 call.data.getBoolean("cardScanningEnabled", null)?.let {
                     paymentConfig.cardScanningEnabled = it
                 }
-                call.success()
+                call.resolve()
             } catch (e: Exception) {
-                call.error("Unable to set payment configuration: ${e.localizedMessage}", e)
+                call.reject("Unable to set payment configuration: ${e.localizedMessage}", e)
             }
         }
     }
@@ -262,7 +263,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 totalAmount = amount
                 paymentSession?.setCartTotal(amount)
             } catch (e: Exception) {
-                call.error("Unable to update payment context: ${e.localizedMessage}", e)
+                call.reject("Unable to update payment context: ${e.localizedMessage}", e)
             }
         }
     }
@@ -280,7 +281,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 call.save()
                 paymentSessionFailedToLoadCallback = call
             } catch (e: Exception) {
-                call.error(
+                call.reject(
                     "Unable to set payment context failed to load callback: ${e.localizedMessage}",
                     e
                 )
@@ -301,7 +302,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 call.save()
                 paymentSessionCreatedPaymentResultCallback = call
             } catch (e: Exception) {
-                call.error(
+                call.reject(
                     "Unable to set payment context created payment result callback: ${e.localizedMessage}",
                     e
                 )
@@ -322,7 +323,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 call.save()
                 paymentSessionDidChangeCallback = call
             } catch (e: Exception) {
-                call.error(
+                call.reject(
                     "Unable to set payment context did change callback: ${e.localizedMessage}",
                     e
                 )
@@ -348,10 +349,10 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 paymentSessionCreatedPaymentResultCallback?.let {
                     val result = JSObject()
                     result.put("paymentMethod", paymentMethod?.let { pm -> pmToJson(pm) })
-                    it.success(result)
+                    it.resolve(result)
                 }
             } catch (e: Exception) {
-                call.error("Unable to request payment: ${e.localizedMessage}", e)
+                call.reject("Unable to request payment: ${e.localizedMessage}", e)
             }
         }
     }
@@ -403,9 +404,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
                 ps.presentPaymentMethodSelection()
 
-                call.success()
+                call.resolve()
             } catch (e: Exception) {
-                call.error("Unable to show payment options: ${e.localizedMessage}", e)
+                call.reject("Unable to show payment options: ${e.localizedMessage}", e)
             }
         }
     }
@@ -438,9 +439,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                     }
                 }
 
-                call.success(result)
+                call.resolve(result)
             } catch (e: Exception) {
-                call.error("Unable to return current payment option: ${e.localizedMessage}", e)
+                call.reject("Unable to return current payment option: ${e.localizedMessage}", e)
             }
         }
     }
@@ -451,9 +452,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
             try {
                 Log.i(TAG, "paymentContextCreatedPaymentResultCompleted")
 
-                call.success()
+                call.resolve()
             } catch (e: Exception) {
-                call.error(
+                call.reject(
                     "Unable to process payment context created payment result completed: ${e.localizedMessage}",
                     e
                 )
@@ -476,9 +477,9 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 prefStore.edit().clear().apply()
                 CustomerSession.endCustomerSession()
 
-                call.success()
+                call.resolve()
             } catch (e: Exception) {
-                call.error("Unable to clear context: ${e.localizedMessage}", e)
+                call.reject("Unable to clear context: ${e.localizedMessage}", e)
             }
         }
     }

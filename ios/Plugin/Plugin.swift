@@ -69,7 +69,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let customerKeyCallback = customerKeyCallback, let bridge = bridge {
             bridge.releaseCall(customerKeyCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         customerKeyCallback = call
     }
 
@@ -80,34 +80,34 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     //   - "error": string error message
     @objc func customerKeyCompleted(_ call: CAPPluginCall) {
         guard let callbackId = call.getString("callbackId") else {
-            call.error("you must provide a callbackId")
+            call.reject("you must provide a callbackId")
             return
         }
 
         guard let customerKeyCallback = customerKeyCallback, customerKeyCallback.callbackId == callbackId else {
-            call.error("you must provide the same callbackId as the enclosing call to setCustomerKeyCallback")
+            call.reject("you must provide the same callbackId as the enclosing call to setCustomerKeyCallback")
             return
         }
 
         guard let customerKeyCallbackCompletion = customerKeyCompletion else {
-            call.error("you must call setCustomerKeyResponse inside an enclosing setCustomerKeyCallback callback")
+            call.reject("you must call setCustomerKeyResponse inside an enclosing setCustomerKeyCallback callback")
             return
         }
 
         guard let response = call.getObject("response") else {
             guard let error = call.getString("error") else {
-                call.error("you must provide either a response or an error")
+                call.reject("you must provide either a response or an error")
                 customerKeyCallbackCompletion(nil, StripePluginError.missingArgument)
                 return
             }
 
             customerKeyCallbackCompletion(nil, StripePluginError.clientError(error: error))
-            call.success()
+            call.resolve()
             return
         }
 
         customerKeyCallbackCompletion(response, nil)
-        call.success()
+        call.resolve()
     }
 
     // MARK: Payment Context
@@ -157,7 +157,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
             if let cardScanningEnabled = call.getBool("cardScanningEnabled") {
                 cfg.cardScanningEnabled = cardScanningEnabled
             }
-            call.success()
+            call.resolve()
         }
     }
 
@@ -166,6 +166,8 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         DispatchQueue.main.async {
             let ctx = self.paymentCtx ?? {
                 let newCtx = STPPaymentContext(customerContext: self.getCustomerContext())
+                assert(self.bridge != nil, "bridge is null?!")
+                assert(self.bridge?.viewController != nil, "viewController was null?!")
                 newCtx.hostViewController = self.bridge?.viewController
                 newCtx.delegate = self
                 return newCtx
@@ -186,7 +188,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let paymentCtxFailedToLoadCallback = paymentCtxFailedToLoadCallback, let bridge = bridge {
             bridge.releaseCall(paymentCtxFailedToLoadCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         paymentCtxFailedToLoadCallback = call
     }
 
@@ -195,22 +197,22 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let paymentContextCreatedPaymentResultCallback = paymentContextCreatedPaymentResultCallback, let bridge = bridge {
             bridge.releaseCall(paymentContextCreatedPaymentResultCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         paymentContextCreatedPaymentResultCallback = call
     }
 
     @objc func setPaymentContextDidChangeCallback(_ call: CAPPluginCall) {
         if let paymentContextDidChangeCallback = paymentContextDidChangeCallback {
-            bridge.releaseCall(paymentContextDidChangeCallback)
+            bridge?.releaseCall(paymentContextDidChangeCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         paymentContextDidChangeCallback = call
     }
 
     @objc func requestPayment(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             if let requestPaymentCallback = self.requestPaymentCallback {
-                self.bridge.releaseCall(requestPaymentCallback)
+                self.bridge?.releaseCall(requestPaymentCallback)
             }
 
             self.requestPaymentCallback = call
@@ -231,7 +233,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     @objc func currentPaymentOption(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard let paymentCtx = self.paymentCtx else {
-                call.error("no payment context")
+                call.reject("no payment context")
                 return
             }
 
@@ -247,7 +249,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
                 }
             }
 
-            call.success(result)
+            call.resolve(result)
         }
     }
 
@@ -257,30 +259,30 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
     //   - "error": string error message, if an error occurred. success is assumed otherwise.
     @objc func paymentContextCreatedPaymentResultCompleted(_ call: CAPPluginCall) {
         guard let paymentContextCreatedPaymentResultCompletion = paymentContextCreatedPaymentResultCompletion else {
-            call.error("you must call paymentContextCreatedPaymentResultCompleted inside an enclosing setPaymentContextCreatedPaymentResultCallback callback")
+            call.reject("you must call paymentContextCreatedPaymentResultCompleted inside an enclosing setPaymentContextCreatedPaymentResultCallback callback")
             return
         }
 
         guard let callbackId = call.getString("callbackId") else {
-            call.error("you must provide a callbackId")
+            call.reject("you must provide a callbackId")
             paymentContextCreatedPaymentResultCompletion(.error, StripePluginError.clientError(error: "you must provide a callbackId"))
             return
         }
 
         guard let paymentContextCreatedPaymentResultCallback = paymentContextCreatedPaymentResultCallback, paymentContextCreatedPaymentResultCallback.callbackId == callbackId else {
-            call.error("you must provide the same callbackId as the enclosing call to setPaymentContextCreatedPaymentResultCallback")
+            call.reject("you must provide the same callbackId as the enclosing call to setPaymentContextCreatedPaymentResultCallback")
             paymentContextCreatedPaymentResultCompletion(.error, StripePluginError.clientError(error: "you must provide the same callbackId as the enclosing call to setPaymentContextCreatedPaymentResultCallback"))
             return
         }
 
         if let error = call.getString("error") {
-            call.error("you must provide either a response or an error")
+            call.reject("you must provide either a response or an error")
             paymentContextCreatedPaymentResultCompletion(.error, StripePluginError.clientError(error: error))
             return
         }
 
         paymentContextCreatedPaymentResultCompletion(.success, nil)
-        call.success()
+        call.resolve()
     }
 
     @objc public func paymentContext(_ paymentContext: STPPaymentContext, didFailToLoadWithError error: Error) {
@@ -313,11 +315,11 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
 
         switch status {
         case .error:
-            requestPaymentCallback.error(error?.localizedDescription ?? "error")
+            requestPaymentCallback.reject(error?.localizedDescription ?? "error")
         case .userCancellation:
-            requestPaymentCallback.success(["userCancellation": true])
+            requestPaymentCallback.resolve(["userCancellation": true])
         case .success:
-            requestPaymentCallback.success([:])
+            requestPaymentCallback.resolve([:])
         }
     }
 
@@ -333,7 +335,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         DispatchQueue.main.async {
             self.customerCtx = nil
             self.paymentCtx = nil
-            call.success()
+            call.resolve()
         }
     }
 }
