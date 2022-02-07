@@ -69,7 +69,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let customerKeyCallback = customerKeyCallback, let bridge = bridge {
             bridge.releaseCall(customerKeyCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         customerKeyCallback = call
     }
 
@@ -188,7 +188,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let paymentCtxFailedToLoadCallback = paymentCtxFailedToLoadCallback, let bridge = bridge {
             bridge.releaseCall(paymentCtxFailedToLoadCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         paymentCtxFailedToLoadCallback = call
     }
 
@@ -197,7 +197,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let paymentContextCreatedPaymentResultCallback = paymentContextCreatedPaymentResultCallback, let bridge = bridge {
             bridge.releaseCall(paymentContextCreatedPaymentResultCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         paymentContextCreatedPaymentResultCallback = call
     }
 
@@ -205,7 +205,7 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         if let paymentContextDidChangeCallback = paymentContextDidChangeCallback {
             bridge?.releaseCall(paymentContextDidChangeCallback)
         }
-        call.isSaved = true
+        call.keepAlive = true
         paymentContextDidChangeCallback = call
     }
 
