@@ -148,7 +148,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
 
                 customerKeyCallback?.release(bridge)
 
-                call.save()
+                call.setKeepAlive(true)
                 customerKeyCallback = call
             } catch (e: Exception) {
                 call.reject("Unable to set customer key callback: ${e.localizedMessage}", e)
@@ -278,7 +278,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                     bridge.releaseCall(it)
                 }
 
-                call.save()
+                call.setKeepAlive(true)
                 paymentSessionFailedToLoadCallback = call
             } catch (e: Exception) {
                 call.reject(
@@ -299,7 +299,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                     bridge.releaseCall(it)
                 }
 
-                call.save()
+                call.setKeepAlive(true)
                 paymentSessionCreatedPaymentResultCallback = call
             } catch (e: Exception) {
                 call.reject(
@@ -320,7 +320,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                     bridge.releaseCall(it)
                 }
 
-                call.save()
+                call.setKeepAlive(true)
                 paymentSessionDidChangeCallback = call
             } catch (e: Exception) {
                 call.reject(
