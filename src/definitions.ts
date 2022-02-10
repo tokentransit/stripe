@@ -202,7 +202,11 @@ export interface StripePlugin {
   // For example:
   //   setCustomerKeyCallback((data:{apiVersion: string, callbackId: string}) => {
   //     ephemeralKeyApiCall(data.apiVersion).subscribe(async result => {
-  //       await customerKeyCompleted({callbackId:data.callbackId, response:result})
+  //       if (result.success) {
+  //         await customerKeyCompleted({callbackId: data.callbackId, response: result.json});
+  //       } else {
+  //         await customerKeyCompleted({callbackId: data.callbackId, error: result.error});
+  //       }
   //     });
   //   });
   setCustomerKeyCallback(cb:(data:{apiVersion:string, callbackId:CallbackID}) => void): Promise<CallbackID>;
@@ -212,7 +216,7 @@ export interface StripePlugin {
   // and one of:
   //   - "response": parsed JSON object of the server response
   //   - "error": string error message
-  customerKeyCompleted(opts:{callbackId:CallbackID, response?:any, error?:any}): Promise<void>;
+  customerKeyCompleted(opts:{callbackId:CallbackID, response?:any, error?:string}): Promise<void>;
 
   // updatePaymentContext creates or updates the payment context with a price. If there is no current price, provide 0 as amount.
   // For example:
