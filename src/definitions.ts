@@ -228,6 +228,9 @@ export interface StripePlugin {
   // setPaymentContextFailedToLoadCallback sets up a callback that is called when the payment context fails to load. This can be due to server or network error.
   setPaymentContextFailedToLoadCallback(cb:(data:{error:string}) => void): Promise<CallbackID>;
 
+  // retryLoading() tries loading the payment context again if it failed to load. This is only meaningful on ios; android will do nothing.
+  retryLoading(): Promise<void>;
+
   // setPaymentContextCreatedPaymentResultCallback sets up a callback that is called with the payment context creates a payment method.
   setPaymentContextCreatedPaymentResultCallback(cb:(data:{paymentMethod:PaymentMethod}) => void): Promise<CallbackID>;
 

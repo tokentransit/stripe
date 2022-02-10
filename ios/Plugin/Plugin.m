@@ -12,6 +12,7 @@ CAP_PLUGIN(StripePlugin, "Stripe",
     CAP_PLUGIN_METHOD(updatePaymentContext, CAPPluginReturnNone);
     CAP_PLUGIN_METHOD(setPaymentConfiguration, CAPPluginReturnPromise);
     CAP_PLUGIN_METHOD(setPaymentContextFailedToLoadCallback, CAPPluginReturnCallback);
+    CAP_PLUGIN_METHOD(retryLoading, CAPPluginReturnNone);
     CAP_PLUGIN_METHOD(setPaymentContextCreatedPaymentResultCallback, CAPPluginReturnCallback);
     CAP_PLUGIN_METHOD(paymentContextCreatedPaymentResultCompleted, CAPPluginReturnNone);
     CAP_PLUGIN_METHOD(setPaymentContextDidChangeCallback, CAPPluginReturnCallback);

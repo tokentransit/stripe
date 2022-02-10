@@ -289,6 +289,12 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
         }
     }
 
+    @PluginMethod(returnType = PluginMethod.RETURN_NONE)
+    fun retryLoading(call: PluginCall) {
+        Log.i(TAG, "retryLoading. nothing to do on android.")
+        call.resolve()
+    }
+
     @PluginMethod(returnType = PluginMethod.RETURN_CALLBACK)
     fun setPaymentContextCreatedPaymentResultCallback(call: PluginCall) {
         GlobalScope.launch(context = Dispatchers.Main) {

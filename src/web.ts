@@ -180,6 +180,10 @@ export class StripePluginWeb extends WebPlugin implements StripePlugin {
     return "";
   }
 
+  async retryLoading(): Promise<void> {
+    return;
+  }
+
   async setPaymentContextCreatedPaymentResultCallback(cb: (data:{paymentMethod:PaymentMethod}) => void): Promise<CallbackID> {
     return "";
   }

@@ -192,6 +192,11 @@ public class StripePlugin: CAPPlugin, STPCustomerEphemeralKeyProvider, STPPaymen
         paymentCtxFailedToLoadCallback = call
     }
 
+    @objc func retryLoading(_ call: CAPPluginCall) {
+        self.paymentCtx?.retryLoading()
+        call.resolve()
+    }
+
     @objc func setPaymentContextCreatedPaymentResultCallback(_ call: CAPPluginCall) {
         // If we're replacing an existing call, release the existing call first.
         if let paymentContextCreatedPaymentResultCallback = paymentContextCreatedPaymentResultCallback, let bridge = bridge {
