@@ -187,6 +187,7 @@ class Stripe : Plugin(), EphemeralKeyProvider, PaymentSession.PaymentSessionList
                 if (error != null) {
                     listener.onKeyUpdateFailure(400, error)
                     call.resolve()
+                    return@launch
                 }
 
                 listener.onKeyUpdate(call.data.getJSObject("response").toString())
