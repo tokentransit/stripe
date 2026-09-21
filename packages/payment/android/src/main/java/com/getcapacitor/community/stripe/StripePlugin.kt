@@ -1,7 +1,5 @@
 package com.getcapacitor.community.stripe
 
-import android.content.ContentResolver
-import android.net.Uri
 import com.getcapacitor.JSObject
 import com.getcapacitor.Logger
 import com.getcapacitor.NativePlugin
@@ -10,16 +8,12 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.community.stripe.googlepay.GooglePayExecutor
 import com.getcapacitor.community.stripe.helper.MetaData
-import com.getcapacitor.community.stripe.identityverification.IdentityVerificationSheetExecutor
 import com.getcapacitor.community.stripe.paymentflow.PaymentFlowExecutor
 import com.getcapacitor.community.stripe.paymentsheet.PaymentSheetExecutor
 import com.stripe.android.PaymentConfiguration
 import com.stripe.android.Stripe
 import com.stripe.android.core.AppInfo
 import com.stripe.android.googlepaylauncher.GooglePayLauncher
-import com.stripe.android.identity.IdentityVerificationSheet
-import com.stripe.android.identity.IdentityVerificationSheet.Companion.create
-import com.stripe.android.identity.IdentityVerificationSheet.VerificationFlowResult
 import com.stripe.android.model.PaymentMethod
 import com.stripe.android.paymentsheet.PaymentSheet
 import com.stripe.android.paymentsheet.PaymentSheetResult
@@ -31,7 +25,6 @@ class StripePlugin : Plugin() {
     private var paymentSheetCallbackId: String? = null
     private var paymentFlowCallbackId: String? = null
     private var googlePayCallbackId: String? = null
-    private var identityVerificationCallbackId: String? = null
     private var metaData: MetaData = MetaData { this.context }
 
     private var paymentSheet: PaymentSheet? = null
@@ -44,9 +37,6 @@ class StripePlugin : Plugin() {
             logTag
     )
     private val googlePayExecutor = GooglePayExecutor({ this.context }, { this.activity }, { eventName: String?, data: JSObject? -> this.notifyListeners(eventName, data) },
-            logTag
-    )
-    private val identityVerificationSheetExecutor = IdentityVerificationSheetExecutor({ this.context }, { this.activity }, { eventName: String?, data: JSObject? -> this.notifyListeners(eventName, data) },
             logTag
     )
 
@@ -80,45 +70,6 @@ class StripePlugin : Plugin() {
                 { paymentOption: PaymentOption? -> paymentFlowExecutor.onPaymentOption(bridge, paymentFlowCallbackId, paymentOption) },
                 { result: PaymentSheetResult? -> paymentFlowExecutor.onPaymentFlowResult(bridge, paymentFlowCallbackId, result) }
         )
-        if (metaData.enableIdentifier) {
-            val resources = activity.applicationContext.resources
-            val resourceId = resources.getIdentifier("ic_launcher", "mipmap", activity.packageName)
-            val icon = Uri.Builder()
-                    .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE)
-                    .authority(resources.getResourcePackageName(resourceId))
-                    .appendPath(resources.getResourceTypeName(resourceId))
-                    .appendPath(resources.getResourceEntryName(resourceId))
-                    .build()
-            identityVerificationSheetExecutor.verificationSheet = create(
-                    activity,
-                    IdentityVerificationSheet.Configuration(icon)
-            ) { verificationFlowResult: VerificationFlowResult? ->
-                // handle verificationResult
-                when (verificationFlowResult) {
-                    is VerificationFlowResult.Completed -> {
-                        // The user has completed uploading their documents.
-                        // Let them know that the verification is processing.
-                        identityVerificationSheetExecutor.onVerificationCompleted(bridge, identityVerificationCallbackId)
-                    }
-
-                    is VerificationFlowResult.Canceled -> {
-                        // The user did not complete uploading their documents.
-                        // You should allow them to try again.
-                        identityVerificationSheetExecutor.onVerificationCancelled(bridge, identityVerificationCallbackId)
-                    }
-
-                    is VerificationFlowResult.Failed -> {
-                        // If the flow fails, you should display the localized error
-                        // message to your user using throwable.getLocalizedMessage()
-                        identityVerificationSheetExecutor.onVerificationFailed(bridge, identityVerificationCallbackId)
-                    }
-
-                    else -> {
-                        identityVerificationSheetExecutor.onVerificationFailed(bridge, identityVerificationCallbackId)
-                    }
-                }
-            }
-        }
     }
 
     private fun newPaymentSheet(): PaymentSheet {
@@ -165,18 +116,6 @@ class StripePlugin : Plugin() {
             paymentSheet
         }
         paymentSheetExecutor.createPaymentSheet(call)
-    }
-
-    @PluginMethod
-    fun createIdentityVerificationSheet(call: PluginCall) {
-        identityVerificationSheetExecutor.createIdentityVerificationSheet(call)
-    }
-
-    @PluginMethod
-    fun presentIdentityVerificationSheet(call: PluginCall) {
-        identityVerificationCallbackId = call.callbackId
-        bridge.saveCall(call)
-        identityVerificationSheetExecutor.presentIdentityVerificationSheet(call)
     }
 
     @PluginMethod

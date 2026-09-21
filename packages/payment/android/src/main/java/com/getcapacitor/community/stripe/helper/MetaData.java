@@ -21,8 +21,6 @@ public class MetaData {
     public String billingAddressFormat;
     public GooglePayEnvironment googlePayEnvironment;
 
-    public boolean enableIdentifier;
-
     public MetaData(Supplier<Context> contextSupplier) {
         this.contextSupplier = contextSupplier;
         try {
@@ -40,7 +38,6 @@ public class MetaData {
             phoneNumberRequired = appInfo.metaData.getBoolean("com.getcapacitor.community.stripe.phone_number_required");
             billingAddressRequired = appInfo.metaData.getBoolean("com.getcapacitor.community.stripe.billing_address_required");
             billingAddressFormat = appInfo.metaData.getString("com.getcapacitor.community.stripe.billing_address_format");
-            enableIdentifier = appInfo.metaData.getBoolean("com.getcapacitor.community.stripe.enableIdentifier");
 
             boolean isTest = appInfo.metaData.getBoolean("com.getcapacitor.community.stripe.google_pay_is_testing");
             if (isTest) {

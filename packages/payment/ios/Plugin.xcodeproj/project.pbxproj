@@ -15,8 +15,6 @@
 		50ADFFA42020D75100D50D53 /* Capacitor.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50ADFFA52020D75100D50D53 /* Capacitor.framework */; };
 		50ADFFA82020EE4F00D50D53 /* StripePlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = 50ADFFA72020EE4F00D50D53 /* StripePlugin.m */; };
 		50E1A94820377CB70090CE1A /* StripePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E1A94720377CB70090CE1A /* StripePlugin.swift */; };
-		903401582A9AF1570078428C /* IdentityVerificationSheetExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903401512A9AF1570078428C /* IdentityVerificationSheetExecutor.swift */; };
-		903401592A9AF1570078428C /* IdentityVerificationSheetEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903401522A9AF1570078428C /* IdentityVerificationSheetEvents.swift */; };
 		9034015A2A9AF1570078428C /* ApplePayEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903401542A9AF1570078428C /* ApplePayEvents.swift */; };
 		9034015B2A9AF1570078428C /* ApplePayExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903401552A9AF1570078428C /* ApplePayExecutor.swift */; };
 		9034015C2A9AF1570078428C /* StringError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 903401572A9AF1570078428C /* StringError.swift */; };
@@ -48,8 +46,6 @@
 		50ADFFA72020EE4F00D50D53 /* StripePlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StripePlugin.m; sourceTree = "<group>"; };
 		50E1A94720377CB70090CE1A /* StripePlugin.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StripePlugin.swift; sourceTree = "<group>"; };
 		5E23F77F099397094342571A /* Pods-Plugin.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Plugin.debug.xcconfig"; path = "Pods/Target Support Files/Pods-Plugin/Pods-Plugin.debug.xcconfig"; sourceTree = "<group>"; };
-		903401512A9AF1570078428C /* IdentityVerificationSheetExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IdentityVerificationSheetExecutor.swift; sourceTree = "<group>"; };
-		903401522A9AF1570078428C /* IdentityVerificationSheetEvents.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IdentityVerificationSheetEvents.swift; sourceTree = "<group>"; };
 		903401542A9AF1570078428C /* ApplePayEvents.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ApplePayEvents.swift; sourceTree = "<group>"; };
 		903401552A9AF1570078428C /* ApplePayExecutor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ApplePayExecutor.swift; sourceTree = "<group>"; };
 		903401572A9AF1570078428C /* StringError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StringError.swift; sourceTree = "<group>"; };
@@ -111,7 +107,6 @@
 			children = (
 				903401532A9AF1570078428C /* ApplePay */,
 				903401562A9AF1570078428C /* Helper */,
-				903401502A9AF1570078428C /* IdentityVerificationSheet */,
 				DB280E4026AD432500AAEA30 /* PaymentFlow */,
 				DB16470A269C455D00E31818 /* PaymentSheet */,
 				DB1523352663D401003F8BF2 /* Info.plist */,
@@ -141,15 +136,6 @@
 				F65BB2953ECE002E1EF3E424 /* Pods-PluginTests.release.xcconfig */,
 			);
 			name = Pods;
-			sourceTree = "<group>";
-		};
-		903401502A9AF1570078428C /* IdentityVerificationSheet */ = {
-			isa = PBXGroup;
-			children = (
-				903401512A9AF1570078428C /* IdentityVerificationSheetExecutor.swift */,
-				903401522A9AF1570078428C /* IdentityVerificationSheetEvents.swift */,
-			);
-			path = IdentityVerificationSheet;
 			sourceTree = "<group>";
 		};
 		903401532A9AF1570078428C /* ApplePay */ = {
@@ -388,10 +374,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				903401582A9AF1570078428C /* IdentityVerificationSheetExecutor.swift in Sources */,
 				DB280E4226AD433900AAEA30 /* PaymentFlowExecutor.swift in Sources */,
 				DB280E4426AD476100AAEA30 /* PaymentFlowEvents.swift in Sources */,
-				903401592A9AF1570078428C /* IdentityVerificationSheetEvents.swift in Sources */,
 				9034015A2A9AF1570078428C /* ApplePayEvents.swift in Sources */,
 				DB16470E269C468900E31818 /* PaymentSheetEvents.swift in Sources */,
 				50E1A94820377CB70090CE1A /* StripePlugin.swift in Sources */,
