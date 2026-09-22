@@ -7,7 +7,6 @@ def capacitor_pods
   pod 'CapacitorCordova', :path => '../node_modules/@capacitor/ios'
   pod 'StripePaymentSheet', '23.14.0'
   pod 'StripeApplePay', '23.14.0'
-  pod 'StripeIdentity', '23.14.0'
 end
 
 target 'Plugin' do
